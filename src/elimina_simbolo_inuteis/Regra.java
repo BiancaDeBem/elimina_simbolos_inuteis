@@ -1,5 +1,4 @@
 package elimina_simbolo_inuteis;
-import java.util.*;
 
 public class Regra {
 	String nao_terminal;

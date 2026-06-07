@@ -1,105 +1,173 @@
 package elimina_simbolo_inuteis;
 
-import java.awt.*;
 import javax.swing.*;
+import java.awt.*;
 import java.util.*;
+import java.util.List;
 
 public class Tela extends JFrame {
-	private JTextArea campoA;
-    private JTextArea campoB;
-    private JButton analisarButton;
-    private JButton limparButton;
-    
-	public static void imprime(Gramatica glc) {
-		System.out.println("=== GRAMÁTICA ORIGINAL ===");
-        glc.imprimirRegras();
+
+    private JTextField txtSimboloInicial;
+    private JTextArea txtProducoes;
+    private JTextArea txtSaida;
+    private JComboBox<String> comboGramaticas;
+    private JButton btnAnalisar;
+    private JButton btnLimpar;
+
+    public Tela() {
+        setTitle("Simplificador de Gramáticas - Símbolos Inúteis");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(1050, 650);
+        setLocationRelativeTo(null);
+        setLayout(new GridLayout(1, 2, 10, 10));
+
+        // PAINEL DE ENTRADA (ESQUERDA)
+        JPanel painelEntrada = new JPanel(new BorderLayout(5, 5));
+        painelEntrada.setBorder(BorderFactory.createTitledBorder("Entrada de Dados"));
+
+        // Configuração do topo do painel de entrada (Seleção e Símbolo Inicial)
+        JPanel painelTopo = new JPanel(new GridLayout(2, 1, 5, 5));
         
-        System.out.println("\n=== EXECUTANDO ELIMINAÇÃO ===");
-        glc.eliminaInferteis();
+        JPanel linhaSelecao = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        linhaSelecao.add(new JLabel("Pré-carregadas: "));
+        String[] opcoes = {
+            "Customizada (Digitar manualmente)",
+            "1. Exemplo do Trabalho (Múltiplas Remoções)",
+            "2. Com Símbolo Infértil (Loop de C)",
+            "3. Com Símbolo Inalcançável (Variável A isolada)"
+        };
+        comboGramaticas = new JComboBox<>(opcoes);
+        linhaSelecao.add(comboGramaticas);
         
-        System.out.println("\n=== EXECUTANDO ELIMINAÇÃO DE INALCANÇÁVEIS ===");
-        glc.eliminaInalcancaveis();
+        JPanel linhaInicial = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        linhaInicial.add(new JLabel("Símbolo Inicial: "));
+        txtSimboloInicial = new JTextField("S", 5);
+        linhaInicial.add(txtSimboloInicial);
         
-        System.out.println("\n=== GRAMÁTICA RESULTANTE ===");
-        glc.imprimirRegras();
-	}
-	
-	public void tela() {
-		setTitle("Reconhecedor de Linguagem Regular");
-	    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-	    setSize(760, 520);
-	    setLocationRelativeTo(null);
-	    setLayout(new BorderLayout(8, 8));
-	
-	    campoA = new JTextArea(8, 40);
-	    campoA.setLineWrap(true);
-	    campoA.setWrapStyleWord(true);
-	    JScrollPane scrollA = new JScrollPane(campoA);
-	    scrollA.setBorder(BorderFactory.createTitledBorder("Gramática 2 Valores Inférteis"));
-	
-	    campoB = new JTextArea(10, 40);
-	    campoB.setEditable(false);
-	    campoB.setLineWrap(true);
-	    campoB.setWrapStyleWord(true);
-	    JScrollPane scrollB = new JScrollPane(campoB);
-	    scrollB.setBorder(BorderFactory.createTitledBorder("Gramática Variável Infértil e Inalcançável"));
-	
-	    JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-	    analisarButton = new JButton("Analisar");
-	    limparButton = new JButton("Limpar");
-	    botoesPanel.add(analisarButton);
-	    botoesPanel.add(limparButton);
-	
-	    JPanel camposPanel = new JPanel();
-	    camposPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
-	    camposPanel.setLayout(new BoxLayout(camposPanel, BoxLayout.Y_AXIS));
-	    camposPanel.add(scrollA);
-	    camposPanel.add(Box.createVerticalStrut(8));
-	    camposPanel.add(scrollB);
-	
-	    add(camposPanel, BorderLayout.CENTER);
-	    add(botoesPanel, BorderLayout.SOUTH);
-	
-	    limparButton.addActionListener(e -> limparCampos());
-	    analisarButton.addActionListener(e -> analisarEntrada());
-	}
-	
-	private void limparCampos() {
-        campoA.setText("");
-        campoB.setText("");
-        campoA.requestFocus();
+        painelTopo.add(linhaSelecao);
+        painelTopo.add(linhaInicial);
+
+        // Área de texto para as produções
+        txtProducoes = new JTextArea();
+        txtProducoes.setFont(new Font("Monospaced", Font.PLAIN, 16));
+        JScrollPane scrollProducoes = new JScrollPane(txtProducoes);
+        scrollProducoes.setBorder(BorderFactory.createTitledBorder("Produções (Ex: S -> A B | C)"));
+
+        // Painel de botões de ação
+        JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        btnLimpar = new JButton("Limpar");
+        btnAnalisar = new JButton("Simplificar Gramática");
+        painelBotoes.add(btnLimpar);
+        painelBotoes.add(btnAnalisar);
+
+        painelEntrada.add(painelTopo, BorderLayout.NORTH);
+        painelEntrada.add(scrollProducoes, BorderLayout.CENTER);
+        painelEntrada.add(painelBotoes, BorderLayout.SOUTH);
+
+        // PAINEL DE SAÍDA (DIREITA)
+        txtSaida = new JTextArea();
+        txtSaida.setEditable(false);
+        txtSaida.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        JScrollPane scrollSaida = new JScrollPane(txtSaida);
+        scrollSaida.setBorder(BorderFactory.createTitledBorder("Console de Processamento (Passo a Passo)"));
+
+        add(painelEntrada);
+        add(scrollSaida);
+
+        // CONFIGURAÇÃO DOS EVENTOS / LISTENERS
+        
+        // Listener para carregar as gramáticas predefinidas
+        comboGramaticas.addActionListener(e -> carregarGramaticaPredefinida());
+
+        btnLimpar.addActionListener(e -> {
+            comboGramaticas.setSelectedIndex(0);
+            txtProducoes.setText("");
+            txtSaida.setText("");
+            txtSimboloInicial.setText("");
+        });
+
+        btnAnalisar.addActionListener(e -> processarGramatica());
+
+        // Carrega o primeiro exemplo por padrão ao iniciar a tela
+        comboGramaticas.setSelectedIndex(1);
     }
 
-	public static void main(String[] args) {
-		Set<String> vn = new HashSet<>(Arrays.asList("S", "A", "B"));
-        Set<String> vt = new HashSet<>(Arrays.asList("a", "ε"));
-        String simboloInicial = "S"; 
-        
+    private void carregarGramaticaPredefinida() {
+        int index = comboGramaticas.getSelectedIndex();
+        switch (index) {
+            case 1: // Exemplo do Trabalho
+                txtSimboloInicial.setText("S");
+                txtProducoes.setText("S -> A B | C\nA -> a A | a\nB -> b\nC -> c D\nD -> d D\nE -> e");
+                break;
+            case 2: // Símbolo Infértil
+                txtSimboloInicial.setText("S");
+                txtProducoes.setText("S -> A | B\nA -> a\nB -> b C\nC -> c C");
+                break;
+            case 3: // Símbolo Inalcançável
+                txtSimboloInicial.setText("S");
+                txtProducoes.setText("S -> a b\nA -> b");
+                break;
+            default: // Customizada (Não altera o texto atual de forma drástica ou limpa)
+                break;
+        }
+    }
+
+    private void processarGramatica() {
+        String inicial = txtSimboloInicial.getText().trim();
+        if (inicial.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Informe o Símbolo Inicial!");
+            return;
+        }
+
+        Set<String> vn = new HashSet<>();
+        Set<String> vt = new HashSet<>();
         List<Regra> regras = new ArrayList<>();
-        
-        regras.add(new Regra("S", "ASB | BSA | SS | aS | ε"));
-        regras.add(new Regra("A", "AB | B"));
-        regras.add(new Regra("B", "BA | A"));
-        
-        Gramatica glc = new Gramatica(vn, vt, regras, simboloInicial);
-        
-        //imprime(glc);
-        
-        Set<String> vn1 = new HashSet<>(Arrays.asList("S", "A", "B", "C", "D"));
-        Set<String> vt1 = new HashSet<>(Arrays.asList("a", "c", "b", "d"));
-        String simboloInicial1 = "S"; 
-        
-        List<Regra> regras1 = new ArrayList<>();
-        
-        regras1.add(new Regra("S", "aA"));
-        regras1.add(new Regra("A", "a | bB"));
-        regras1.add(new Regra("B", "b | dD"));
-        regras1.add(new Regra("C", "cC | c"));
-        regras1.add(new Regra("D", "dD"));
-        
-        Gramatica glc1 = new Gramatica(vn1, vt1, regras1, simboloInicial1);
-        
-        imprime(glc1);
+        vn.add(inicial);
+
+        String[] linhas = txtProducoes.getText().split("\n");
+        for (String linha : linhas) {
+            if (!linha.contains("->")) continue;
+            String[] partes = linha.split("->");
+            String lhs = partes[0].trim();
+            String rhs = partes[1].trim();
+
+            regras.add(new Regra(lhs, rhs));
+            vn.add(lhs);
+
+            String rhsLimpo = rhs.replaceAll("\\s+", "");
+            for (char c : rhsLimpo.toCharArray()) {
+                if (c == '|') continue;
+                if (Character.isUpperCase(c)) {
+                    vn.add(String.valueOf(c));
+                } else if (c != 'ε') {
+                    vt.add(String.valueOf(c));
+                }
+            }
+        }
+
+        Gramatica glc = new Gramatica(vn, vt, regras, inicial);
+
+        StringBuilder logFinal = new StringBuilder();
+        logFinal.append("--- GRAMÁTICA ORIGINAL ---\n");
+        logFinal.append(glc.getGramaticaFormatada()).append("\n");
+
+        logFinal.append(glc.eliminaInferteis());
+        logFinal.append(glc.eliminaInalcancaveis());
+
+        logFinal.append("\n=== RESULTADO: GRAMÁTICA SIMPLIFICADA ===\n");
+        if (glc.getGramaticaFormatada().isEmpty()) {
+            logFinal.append("(Gramática Vazia ou Símbolo Inicial Inútil)\n");
+        } else {
+            logFinal.append(glc.getGramaticaFormatada());
+        }
+
+        txtSaida.setText(logFinal.toString());
+        txtSaida.setCaretPosition(0); 
     }
 
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            new Tela().setVisible(true);
+        });
+    }
 }
