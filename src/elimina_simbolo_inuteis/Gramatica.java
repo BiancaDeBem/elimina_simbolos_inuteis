@@ -15,7 +15,6 @@ public class Gramatica {
     }
 
     private boolean isAlternativaFertil(String alternativa, Set<String> ferteis) {
-        // Remove espaços em branco para avaliar apenas os símbolos
         String altLimpa = alternativa.replaceAll("\\s+", "");
         if (altLimpa.equals("ε")) return true;
 
@@ -29,14 +28,18 @@ public class Gramatica {
     }
 
     public String eliminaInferteis() {
-        StringBuilder log = new StringBuilder("=== ETAPA 1: ELIMINAÇÃO DE INFÉRTEIS ===\n");
+        StringBuilder log = new StringBuilder("=== ETAPA 1: ELIMINAÇÃO DE SÍMBOLOS INFÉRTEIS ===\n");
+        log.append("Buscando variáveis que conseguem gerar terminais (direta ou indiretamente)...\n");
+        
         Set<String> ferteis = new HashSet<>();
         boolean novaDescoberta;
         int iteracao = 1;
 
-        // 1. Encontrando os símbolos férteis (Conjuntos N)
+        // 1. Encontrando os símbolos férteis com rastreio detalhado
         do {
             novaDescoberta = false;
+            log.append("\n-> Iteração ").append(iteracao).append(":\n");
+            
             for (Regra regra : regras) {
                 String nt = regra.getNaoTerminal();
                 if (!ferteis.contains(nt)) {
@@ -45,14 +48,24 @@ public class Gramatica {
                         if (isAlternativaFertil(alt, ferteis)) {
                             ferteis.add(nt);
                             novaDescoberta = true;
+                            log.append("   [+] '").append(nt).append("' é FÉRTIL (motivo: derivação válida através de '").append(alt.trim()).append("')\n");
                             break;
                         }
                     }
                 }
             }
-            log.append("Conjunto N").append(iteracao).append(" = ").append(ferteis).append("\n");
+            log.append("   Conjunto N").append(iteracao).append(" = ").append(ferteis).append("\n");
             iteracao++;
         } while (novaDescoberta);
+
+        // Identificando quem ficou de fora (os inférteis de fato)
+        Set<String> inferteis = new HashSet<>(this.vn);
+        inferteis.removeAll(ferteis);
+        if (inferteis.isEmpty()) {
+            log.append("\n-> Nenhum símbolo infértil foi encontrado.\n");
+        } else {
+            log.append("\n-> Símbolos INFÉRTEIS descartados: ").append(inferteis).append("\n");
+        }
 
         // 2. Reconstruindo as regras apenas com os blocos férteis
         List<Regra> regrasAtualizadas = new ArrayList<>();
@@ -63,6 +76,8 @@ public class Gramatica {
                 for (String alt : alternativas) {
                     if (isAlternativaFertil(alt, ferteis)) {
                         alternativasFerteis.add(alt.trim());
+                    } else {
+                        log.append("   [-] Alternativa '").append(alt.trim()).append("' removida da regra de '").append(regra.getNaoTerminal()).append("' (depende de inférteis).\n");
                     }
                 }
                 if (!alternativasFerteis.isEmpty()) {
@@ -71,26 +86,42 @@ public class Gramatica {
                 }
             }
         }
+        
         this.regras = regrasAtualizadas;
         this.vn.retainAll(ferteis);
+
+        log.append("\n[Gramática Intermediária após Etapa 1]\n");
+        if(regras.isEmpty()) log.append("(Vazia)\n");
+        else log.append(getGramaticaFormatada()).append("\n");
 
         return log.toString();
     }
 
     public String eliminaInalcancaveis() {
-        StringBuilder log = new StringBuilder("\n=== ETAPA 2: ELIMINAÇÃO DE INALCANÇÁVEIS ===\n");
+        StringBuilder log = new StringBuilder("=== ETAPA 2: ELIMINAÇÃO DE SÍMBOLOS INALCANÇÁVEIS ===\n");
+        
+        if (!this.vn.contains(this.simboloInicial)) {
+            log.append("O símbolo inicial '").append(this.simboloInicial).append("' foi removido na Etapa 1. A gramática resultante é vazia.\n");
+            this.regras.clear();
+            return log.toString();
+        }
+
+        log.append("Partindo do símbolo inicial '").append(this.simboloInicial).append("' para descobrir o que é alcançável...\n\n");
+        
         Set<String> vtAlc = new HashSet<>();
         Set<String> vnAlc = new HashSet<>();
         vnAlc.add(this.simboloInicial);
 
         boolean novaDescoberta;
         int iteracao = 0;
-        log.append("Conjunto V").append(iteracao).append(" (Alcançáveis) = ").append(vnAlc).append("\n");
+        log.append("-> Iteração ").append(iteracao).append(":\n");
+        log.append("   Conjunto V").append(iteracao).append(" (Alcançáveis) = ").append(vnAlc).append("\n");
 
-        // O laço para achar os símbolos alcançáveis
+        // Encontrando símbolos alcançáveis com rastreio detalhado
         do {
             novaDescoberta = false;
             iteracao++;
+            log.append("\n-> Iteração ").append(iteracao).append(":\n");
 
             for (Regra regra : regras) {
                 if (vnAlc.contains(regra.getNaoTerminal())) {
@@ -104,9 +135,11 @@ public class Gramatica {
                             if (this.vn.contains(simbolo) && !vnAlc.contains(simbolo)) {
                                 vnAlc.add(simbolo);
                                 novaDescoberta = true;
+                                log.append("   [+] Alcançou Variável '").append(simbolo).append("' através da regra '").append(regra.getNaoTerminal()).append(" -> ").append(alt.trim()).append("'\n");
                             } else if (this.vt.contains(simbolo) && !vtAlc.contains(simbolo)) {
                                 vtAlc.add(simbolo);
                                 novaDescoberta = true;
+                                log.append("   [+] Alcançou Terminal '").append(simbolo).append("' através da regra '").append(regra.getNaoTerminal()).append(" -> ").append(alt.trim()).append("'\n");
                             }
                         }
                     }
@@ -115,9 +148,20 @@ public class Gramatica {
             if(novaDescoberta) {
                 Set<String> todosAlcancaveis = new HashSet<>(vnAlc);
                 todosAlcancaveis.addAll(vtAlc);
-                log.append("Conjunto V").append(iteracao).append(" (Alcançáveis) = ").append(todosAlcancaveis).append("\n");
+                log.append("   Conjunto V").append(iteracao).append(" = ").append(todosAlcancaveis).append("\n");
+            } else {
+                log.append("   Nenhuma nova descoberta nesta iteração. Busca encerrada.\n");
             }
         } while (novaDescoberta);
+
+        // Identificando quem ficou isolado
+        Set<String> vnInalcancaveis = new HashSet<>(this.vn);
+        vnInalcancaveis.removeAll(vnAlc);
+        if (vnInalcancaveis.isEmpty()) {
+            log.append("\n-> Nenhuma variável inalcançável foi encontrada.\n");
+        } else {
+            log.append("\n-> Variáveis INALCANÇÁVEIS descartadas: ").append(vnInalcancaveis).append("\n");
+        }
 
         this.vn.retainAll(vnAlc);
         this.vt.retainAll(vtAlc);
